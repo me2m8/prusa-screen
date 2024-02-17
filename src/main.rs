@@ -1,4 +1,34 @@
-use leptos::{component, create_signal, view, IntoView};
+use leptos::{
+    component, create_rw_signal, create_signal, leptos_dom::logging::console_log, view, For,
+    IntoView, RwSignal, SignalGet, SignalUpdate,
+};
+
+#[derive(Debug, Clone, Copy)]
+enum Orientation {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SlidingContainer {
+    color: &'static str,
+    name: &'static str,
+    big: RwSignal<bool>,
+    exclusive: bool,
+    orientation: Orientation,
+}
+
+impl Default for SlidingContainer {
+    fn default() -> Self {
+        Self {
+            color: Default::default(),
+            name: Default::default(),
+            big: Default::default(),
+            exclusive: Default::default(),
+            orientation: Orientation::Horizontal,
+        }
+    }
+}
 
 fn main() {
     leptos::mount_to_body(move || view! { <App /> });
@@ -12,17 +42,18 @@ fn App() -> impl IntoView {
 }
 
 #[component]
-fn HSliding_container(color: &'static str, name: &'static str, big: leptos::ReadSignal<bool>) -> impl IntoView {
-    let style = format!("background-color: {}", color);
-
+fn HSliding_container(
+    color: &'static str,
+    #[prop(optional)] name: &'static str,
+    big: RwSignal<bool>,
+) -> impl IntoView {
     view! {
         <div
-            style=style
-
             class="sliding_container"
-            class:container_small=move || !big()
-            class:container_big=move || big()
+            class:container_small=move||!big()
+            class:container_big=big
 
+            style:background-color=color
             >
             <p class="disappearing_font name-tag">{name}</p>
             <p class="disappearing_font">"Focus"</p>
@@ -32,23 +63,57 @@ fn HSliding_container(color: &'static str, name: &'static str, big: leptos::Read
 
 #[component]
 fn Sliding_container_wrapper() -> impl IntoView {
-    let (big1, change_size1) = create_signal(false);
-    let (big2, change_size2) = create_signal(false);
-    let (big3, change_size3) = create_signal(false);
+    let state = vec![
+        SlidingContainer {
+            name: "Ruccola",
+            color: "#ffffff",
+            ..Default::default()
+        },
+        SlidingContainer {
+            name: "Information",
+            color: "#0092ff",
+            exclusive: true,
+            ..Default::default()
+        },
+        SlidingContainer {
+            name: "Lotta",
+            color: "#ff9200",
+            ..Default::default()
+        },
+    ];
+
+    let (state, change_state) = create_signal(state);
 
     view! {
-        <HSliding_container color="#ffffff" name="Ruccola" big=big1 on:click=move|_|{
-            change_size1(!big1());
-            change_size2(false);
-        }/>
-        <HSliding_container color="#0092ff" name="Information" big=big2 on:click=move|_|{
-            change_size1(false);
-            change_size2(!big2());
-            change_size3(false);
-        }/>
-        <HSliding_container color="#ff9200" name="Lotta" big=big3 on:click=move|_|{
-            change_size2(false);
-            change_size3(!big3());
-        }/>
+        <For
+            each=move || state().into_iter().enumerate()
+            key=|(_, slider)| slider.name
+            children=move|(index, slider)| {
+                view! {
+                    <HSliding_container
+                        name=slider.name
+                        color=slider.color
+                        big=slider.big
+                        on:click=move|_|{
+                            let new_state = state();
+
+                            // Collapse all others if current slider is exclusive and
+                            // current slider is small
+                            if slider.exclusive && !slider.big.get() {
+                                for (i, s) in new_state.iter().enumerate() {
+                                    if i != index {
+                                        s.big.update(|n| *n = false);
+                                    }
+                                }
+                            }
+
+                            new_state[index].big.update(|n| *n = !*n);
+                            change_state(new_state);
+                        }
+                    />
+                }
+            }
+            >
+        </For>
     }
 }
